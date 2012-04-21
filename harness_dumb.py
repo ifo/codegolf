@@ -1,5 +1,5 @@
 
-import sys, os, fcntl, subprocess, time, errno, signal, pty, json, random
+import sys, os, subprocess, time, errno, signal, pty, json, random
 from getopt import getopt, GetoptError
 random.seed()
 
@@ -92,9 +92,6 @@ def start(directory, program):
   p = subprocess.Popen(program, stdin=subprocess.PIPE, 
       stdout=subprocess.PIPE, bufsize=4096)
   #p = pty.spawn(program)
-  fd = p.stdout.fileno()
-  fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-  fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
   os.chdir(cwd)
   return p, time.time()
 
@@ -107,21 +104,9 @@ def getmem(p):
 def kill(p):
   os.kill(p.pid, signal.SIGTERM)
 
-def check_indexing_resources(p, start_time):
-  mem = getmem(p)
-  if mem > MEMLIMIT: 
-    kill(p)
-    log("You used to much memory, killing")
-    sys.exit(error_codes['mem'])
-  if time.time() - start_time > INDEX_TIME:
-    kill(p)
-    log("You used to much (index) time, killing")
-    sys.exit(error_codes['index_time'])
-
 def monitor_indexing(p, start_time):
   text = ''
   while '>' not in text:
-    check_indexing_resources(p, start_time)
     text = nb_read(p.stdout, 1)
     if text != '': 
       sys.stderr.write(text)
@@ -129,17 +114,6 @@ def monitor_indexing(p, start_time):
       sys.stdout.flush()
     else:
       time.sleep(.001)
-  
-def check_query_resources(p, start_time):
-  mem = getmem(p)
-  if mem > MEMLIMIT: 
-    kill(p)
-    log("You used to much memory, killing")
-    sys.exit(error_codes['mem'])
-  if time.time() - start_time > QUERY_TIME:
-    kill(p)
-    log("You used to much (query) time, killing")
-    sys.exit(error_codes['query_time'])
 
 def load_results(buf):
   #log(buf)
@@ -150,7 +124,6 @@ def monitor_query(p, start_time, expected):
   buf = ''
   text = ''
   while '>' not in text:
-    check_query_resources(p, start_time)
     text = nb_read(p.stdout, 1)
     if text != '' and '>' not in text: 
       buf += text
